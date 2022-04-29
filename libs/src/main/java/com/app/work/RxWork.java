@@ -1,6 +1,5 @@
 package com.app.work;
 
-import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.Uri;
 
@@ -104,6 +103,13 @@ public class RxWork {
         return this;
     }
 
+    /**
+     * 设置从第一次检测到内容更改到计划的时间所允许的延迟
+     *
+     * @param duration
+     * @param timeUnit
+     * @return
+     */
     @RequiresApi(24)
     @NonNull
     public RxWork setTriggerContentUpdateDelay(
@@ -113,6 +119,12 @@ public class RxWork {
         return this;
     }
 
+    /**
+     * 设置从第一次检测到内容更改到计划的时间所允许的延迟
+     *
+     * @param duration
+     * @return
+     */
     @RequiresApi(26)
     @NonNull
     public RxWork setTriggerContentUpdateDelay(Duration duration) {
@@ -121,7 +133,7 @@ public class RxWork {
     }
 
     /**
-     * 设置允许的最大延迟，从第一次检测到内容:Uri更改到WorkRequest被调度的时间。
+     * 设置从第一次检测到内容更改到计划的时间所允许的最大延迟
      */
     @RequiresApi(24)
     @NonNull
@@ -133,7 +145,7 @@ public class RxWork {
     }
 
     /**
-     * 设置允许的最大延迟，从第一次检测到内容:Uri更改到WorkRequest被调度的时间。
+     * 设置从第一次检测到内容更改到计划的时间所允许的最大延迟
      */
     @RequiresApi(26)
     @NonNull
@@ -273,17 +285,29 @@ public class RxWork {
     /**
      * 将WorkRequest标记为对用户重要的。在这种情况下，WorkManager向操作系统提供了一个额外的信号，表明这项工作很重要。
      */
-    @SuppressLint("MissingGetterMatchingBuilder")
     public RxWork setExpedited(@NonNull OutOfQuotaPolicy policy) {
         this.expedited = policy;
         return this;
     }
 
+    /**
+     * 为OneTimeWorkRequest指定InputMerger类名。
+     * 在工作线程运行之前，它们从它们的父工作线程接收输入数据，以及通过setInputData(Data)
+     * 直接指定给它们的任何东西。InputMerger接受所有这些对象，并将它们转换为单个合并数据，以用作工作者输入。
+     *
+     * @param inputMerger
+     * @return
+     */
     public RxWork setInputMerger(@NonNull Class<? extends InputMerger> inputMerger) {
         this.inputMerger = inputMerger;
         return this;
     }
 
+    /**
+     * 一次性工作任务请求
+     *
+     * @return
+     */
     public OneTimeWorkRequest oneTimeWorkRequest() {
         OneTimeWorkRequest.Builder builder = new OneTimeWorkRequest.Builder(workerClass)
                 .keepResultsForAtLeast(minimumRetentionDuration, TimeUnit.MILLISECONDS)
@@ -309,6 +333,11 @@ public class RxWork {
         return builder.build();
     }
 
+    /**
+     * 周期性工作任务请求
+     *
+     * @return
+     */
     public PeriodicWorkRequest periodicWorkRequest() {
         PeriodicWorkRequest.Builder builder = new PeriodicWorkRequest.Builder(workerClass,
                 repeatIntervalTime, TimeUnit.MILLISECONDS,
@@ -333,34 +362,125 @@ public class RxWork {
         return builder.build();
     }
 
-    public Operation enqueueOneTime(Context context) {
-        return WorkManager.getInstance(context).enqueue(oneTimeWorkRequest());
+    /**
+     * 一次性任务
+     *
+     * @return
+     */
+    public OneTimeWork oneTimeWork() {
+        return new OneTimeWork(oneTimeWorkRequest());
     }
 
-    public Operation enqueuePeriodicWork(Context context) {
-        return WorkManager.getInstance(context).enqueue(periodicWorkRequest());
+    /**
+     * 周期性任务
+     *
+     * @return
+     */
+    public PeriodicWork periodicWork() {
+        return new PeriodicWork(periodicWorkRequest());
     }
 
-    public WorkContinuation beginWith(Context context) {
-        return WorkManager.getInstance(context).beginWith(oneTimeWorkRequest());
+    public static final class OneTimeWork {
+        private OneTimeWorkRequest workRequest;
+
+        private OneTimeWork(OneTimeWorkRequest workRequest) {
+            this.workRequest = workRequest;
+        }
+
+        /**
+         * 获取workRequest
+         *
+         * @return
+         */
+        public OneTimeWorkRequest getWork() {
+            return workRequest;
+        }
+
+        /**
+         * 直接执行任务
+         *
+         * @param context
+         * @return
+         */
+        public Operation enqueue(Context context) {
+            return WorkManager.getInstance(context).enqueue(workRequest);
+        }
+
+        /**
+         * 开启执行一次性任务
+         *
+         * @param context
+         * @return
+         */
+        public WorkContinuation beginWith(Context context) {
+            return WorkManager.getInstance(context).beginWith(workRequest);
+        }
+
+        /**
+         * 开启唯一性工作任务
+         *
+         * @param context
+         * @param uniqueWorkName
+         * @param existingWorkPolicy
+         * @return
+         */
+        public WorkContinuation beginUniqueWork(@NonNull Context context, @NonNull String uniqueWorkName,
+                                                @NonNull ExistingWorkPolicy existingWorkPolicy) {
+            return WorkManager.getInstance(context).beginUniqueWork(uniqueWorkName, existingWorkPolicy, workRequest);
+        }
+
+        /**
+         * 开启并执行唯一性工作任务
+         *
+         * @param context
+         * @param uniqueWorkName
+         * @param existingWorkPolicy
+         * @return
+         */
+        public Operation enqueueUniqueWork(@NonNull Context context,
+                                           @NonNull String uniqueWorkName,
+                                           @NonNull ExistingWorkPolicy existingWorkPolicy) {
+            return WorkManager.getInstance(context)
+                    .enqueueUniqueWork(uniqueWorkName, existingWorkPolicy, workRequest);
+        }
     }
 
-    public WorkContinuation beginUniqueWork(@NonNull Context context, @NonNull String uniqueWorkName,
-                                            @NonNull ExistingWorkPolicy existingWorkPolicy) {
-        return WorkManager.getInstance(context).beginUniqueWork(uniqueWorkName, existingWorkPolicy, oneTimeWorkRequest());
-    }
+    public static final class PeriodicWork {
+        private PeriodicWorkRequest workRequest;
 
-    public Operation enqueueUniqueWork(@NonNull Context context,
-                                       @NonNull String uniqueWorkName,
-                                       @NonNull ExistingWorkPolicy existingWorkPolicy) {
-        return WorkManager.getInstance(context).enqueueUniqueWork(uniqueWorkName, existingWorkPolicy, oneTimeWorkRequest());
-    }
+        private PeriodicWork(PeriodicWorkRequest workRequest) {
+            this.workRequest = workRequest;
+        }
 
-    public Operation enqueueUniquePeriodicWork(
-            @NonNull Context context,
-            @NonNull String uniqueWorkName,
-            @NonNull ExistingPeriodicWorkPolicy existingPeriodicWorkPolicy) {
-        return WorkManager.getInstance(context).enqueueUniquePeriodicWork(uniqueWorkName, existingPeriodicWorkPolicy, periodicWorkRequest());
+        public PeriodicWorkRequest getWork() {
+            return workRequest;
+        }
+
+        /**
+         * 开启执行周期性任务
+         *
+         * @param context
+         * @return
+         */
+        public Operation enqueue(Context context) {
+            return WorkManager.getInstance(context).enqueue(workRequest);
+        }
+
+        /**
+         * 开启并执行唯一性周期工作任务
+         *
+         * @param context
+         * @param uniqueWorkName
+         * @param existingPeriodicWorkPolicy
+         * @return
+         */
+        public Operation enqueueUnique(
+                @NonNull Context context,
+                @NonNull String uniqueWorkName,
+                @NonNull ExistingPeriodicWorkPolicy existingPeriodicWorkPolicy) {
+            return WorkManager.getInstance(context)
+                    .enqueueUniquePeriodicWork(uniqueWorkName, existingPeriodicWorkPolicy, workRequest);
+        }
     }
 
 }
